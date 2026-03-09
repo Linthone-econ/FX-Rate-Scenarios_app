@@ -1,9 +1,13 @@
 """
-FX & Commodities Forecast Dashboard
-=====================================
-Live prices via Yahoo Finance · 5-Scenario monthly projections
-Commodities: Energy, Metals, Agricultural
-FX Pairs   : EUR/USD, GBP/USD, USD/JPY, USD/THB
+🇱🇦 Laos FX & Import Price Forecast — Policy Dashboard
+=====================================================
+Developed for the FX Policy Division, Bank of Laos (BOL) / NSC
+
+Purpose : Monitor and scenario-test global commodity prices and exchange rates
+          that directly affect Laos’ import costs, inflation, and LAK stability.
+Data    : Live via Yahoo Finance (~15-min delay)  |  5-Scenario monthly projections
+Assets  : Commodity imports (Energy, Metals, Agricultural) + LAK/USD, LAK/THB cross rate
+Authors : FX Policy Division — Forecasting & Scenarios Unit
 """
 
 import warnings
@@ -21,8 +25,8 @@ import plotly.graph_objects as go
 #  PAGE CONFIGURATION
 # ─────────────────────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="FX & Commodities Forecast",
-    page_icon="📊",
+    page_title="🇱🇦 Laos FX & Import Price Forecast",
+    page_icon="🇱🇦",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -125,6 +129,28 @@ LAK_DEFAULT_MONTHLY_PCT: dict[str, float] = {
     "Moderate Bear": -1.0,   # LAK firms slightly
     "Strong Bear":   -3.0,   # LAK firms on deflation / capital repatriation
 }
+
+# FX Intervention & Oil pass-through defaults
+BOL_RESERVES_DEFAULT_USD_MN: float        = 1_300.0   # BOL reserves estimate (USD mn)
+DAILY_FX_VOLUME_DEFAULT_USD_MN: float     = 5.0       # Lao daily FX market volume (USD mn)
+TARGET_MAX_DEP_DEFAULT: float             = 1.0       # target max monthly LAK depreciation %
+FX_INTV_EFFECTIVENESS_DEFAULT: float      = 50.0      # intervention effectiveness (%)
+OIL_CPI_BETA_DEFAULT: float               = 0.30      # fraction: 10% oil rise → 3 pp CPI
+EUR_CPI_BETA_DEFAULT: float               = 0.15      # 10% EUR/USD rise → +1.5 pp CPI via Thai/VN imports
+
+# Default monthly USD/THB % per scenario (+ = THB weakens vs USD; THB is more stable than LAK)
+THB_DEFAULT_MONTHLY_PCT: dict[str, float] = {
+    "Strong Bull":    1.5,   # risk-off / EM sell-off → THB weakens vs USD
+    "Moderate Bull":  0.8,
+    "Base Case":      0.0,
+    "Moderate Bear": -0.5,   # EM stabilise → THB firms
+    "Strong Bear":   -1.5,   # safe-haven demand → THB firms
+}
+
+# THB-channel BOL intervention defaults
+BOL_THB_RESERVES_DEFAULT_USD_MN: float   = 200.0      # BOL THB buffer (USD equiv mn)
+DAILY_THB_VOL_DEFAULT_USD_MN: float      = 2.0        # daily LAK/THB market vol (USD equiv mn)
+TARGET_LAK_THB_DEP_DEFAULT: float        = 1.5        # target max LAK/THB dep %/mo
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -547,11 +573,11 @@ def generate_excel(
         ws_a.write(1, 2, "FX: Monthly % Chg", hdr_fmt)
         ws_a.write(1, 3, "Description", hdr_fmt)
         descriptions = {
-            "Strong Bull":   "Significant positive price/rate movement",
-            "Moderate Bull": "Mild upward price/rate pressure",
-            "Base Case":     "Consensus / status-quo trajectory",
-            "Moderate Bear": "Mild downward correction",
-            "Strong Bear":   "Sharp sell-off / stress scenario",
+            "Strong Bull":   "Worst-case for Laos: commodity surge, strong USD, rapid LAK depreciation, CPI spike",
+            "Moderate Bull": "Moderate commodity rise, mild LAK depreciation, manageable CPI pressure",
+            "Base Case":     "Consensus / status-quo trajectory — BOL reference scenario",
+            "Moderate Bear": "Commodity softening, partial LAK stabilisation, easing inflation outlook",
+            "Strong Bear":   "Best-case for Laos: commodity decline, USD weakens, LAK firms, CPI relief",
         }
         for i, sc in enumerate(SCENARIOS):
             ws_a.write(2 + i, 0, sc, label_fmt)
@@ -757,14 +783,20 @@ st.markdown(
 #  SIDEBAR  – Settings & Scenario Assumptions
 # ─────────────────────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown("## ⚙️ Dashboard Settings")
-    st.caption("Adjust assumptions and horizon below.")
+    st.markdown("## ⚙️ BOL/NSC Analysis Settings")
+    st.caption(
+        "Set the forecast horizon and scenario assumptions below. "
+        "Changes apply immediately to all charts and tables."
+    )
 
     forecast_months: int = st.slider("📅 Forecast horizon (months)", 1, 6, 3)
 
     st.divider()
-    st.markdown("### 📦 Commodity Assumptions")
-    st.caption("Monthly % price change per scenario")
+    st.markdown("### 📦 Global Commodity Assumptions")
+    st.caption(
+        "Monthly % price change per scenario — applied to all 11 commodity imports. "
+        "Energy (oil, gas) and agricultural goods are key Laos import cost drivers."
+    )
     pcts_comm: dict[str, float] = {}
     for sc in SCENARIOS:
         pcts_comm[sc] = st.number_input(
@@ -777,7 +809,11 @@ with st.sidebar:
         )
 
     st.divider()
-    st.markdown("### 💱 FX Assumptions")
+    st.markdown("### 💱 Global FX Assumptions (EUR/USD, GBP/USD, USD/JPY)")
+    st.caption(
+        "EUR/USD strength affects Laos indirectly via import pricing in Thailand and Vietnam. "
+        "USD/JPY movements influence global capital flows that reach ASEAN."
+    )
     same_as_comm: bool = st.checkbox("Mirror commodity assumptions", value=True)
     pcts_fx: dict[str, float] = {}
     if same_as_comm:
@@ -806,14 +842,18 @@ with st.sidebar:
         st.rerun()
 
     st.caption(
-        "📡 Data: Yahoo Finance (free, ~15-min delay).  \n"
-        "Futures contracts may occasionally be unavailable."
+        "📡 Live data: Yahoo Finance (∼15-min delay). Front-month futures. "
+        "Exotic tickers (USD/LAK) may need manual override — use BOL daily rate."
     )
 
     st.divider()
-    st.markdown("### 🇱🇦 Laos Focus Assumptions")
+    st.markdown("### 🇱🇦 Laos-Specific Assumptions")
+    st.caption(
+        "Inputs below drive the 🇱🇦 Laos Focus tab: USD/LAK, LAK/THB cross rate, "
+        "gold price in LAK, CPI inflation, and FX intervention cost modelling."
+    )
     current_inflation: float = st.number_input(
-        "Current annual CPI inflation (%)",
+        "Current annual Laos CPI inflation (%)",
         min_value=0.0,
         max_value=200.0,
         value=LAK_DEFAULT_INFLATION_PCT,
@@ -847,14 +887,113 @@ with st.sidebar:
                 help=f"pp added to base CPI inflation for {sc} scenario.",
             )
 
+    st.divider()
+    st.markdown("### 🛡️ FX Intervention & Oil")
+    oil_cpi_beta_sidebar: float = st.number_input(
+        "Oil → CPI pass-through fraction",
+        min_value=0.0, max_value=1.0,
+        value=OIL_CPI_BETA_DEFAULT,
+        step=0.05, format="%.2f",
+        key="oil_cpi_beta",
+        help="Fraction of an oil price % change that passes through to Laos CPI. "
+             "e.g. 0.30 = 10% oil rise → +3 pp CPI.",
+    )
+    eur_cpi_beta_sidebar: float = st.number_input(
+        "EUR/USD → CPI (Thailand import channel)",
+        min_value=0.0, max_value=1.0,
+        value=EUR_CPI_BETA_DEFAULT,
+        step=0.05, format="%.2f",
+        key="eur_cpi_beta",
+        help="When EUR/USD rises (USD weakens), Thai & Vietnamese goods imported via Europe "
+             "get costlier → Laos CPI rises. e.g. 0.15 = 10% EUR/USD rise → +1.5 pp CPI.",
+    )
+    with st.expander("📊 THB Monthly % per Scenario (USD/THB)", expanded=False):
+        st.caption(
+            "+ = THB weakens vs USD (more THB per dollar).\n"
+            "THB is more stable than LAK — correlates with USD but smaller moves."
+        )
+        pcts_thb: dict[str, float] = {}
+        for sc in SCENARIOS:
+            pcts_thb[sc] = st.number_input(
+                sc,
+                value=THB_DEFAULT_MONTHLY_PCT[sc],
+                step=0.1, format="%.2f",
+                key=f"thb_pct_{sc}",
+                help=f"Monthly % change for USD/THB under {sc}. "
+                     f"(+) = THB depreciates vs USD, (-) = THB appreciates.",
+            )
+    with st.expander("🔧 FX Intervention Parameters", expanded=False):
+        st.caption("— USD/LAK Channel —")
+        bol_reserves: float = st.number_input(
+            "BOL USD Reserves (mn)",
+            min_value=0.0, max_value=50_000.0,
+            value=BOL_RESERVES_DEFAULT_USD_MN,
+            step=50.0, format="%.0f",
+            key="bol_reserves",
+            help="Bank of Laos USD foreign currency reserves in USD million.",
+        )
+        daily_fx_vol_mn: float = st.number_input(
+            "Daily USD/LAK Market Volume (USD mn)",
+            min_value=0.1, max_value=1_000.0,
+            value=DAILY_FX_VOLUME_DEFAULT_USD_MN,
+            step=0.5, format="%.1f",
+            key="daily_fx_vol",
+            help="Estimated daily USD-LAK market turnover in Laos.",
+        )
+        target_max_dep: float = st.number_input(
+            "Target max LAK/USD dep (%/mo)",
+            min_value=0.0, max_value=20.0,
+            value=TARGET_MAX_DEP_DEFAULT,
+            step=0.25, format="%.2f",
+            key="target_max_dep",
+            help="Maximum monthly LAK depreciation vs USD BOL wants to allow.",
+        )
+        intv_effect: float = st.number_input(
+            "Intervention effectiveness (%)",
+            min_value=1.0, max_value=100.0,
+            value=FX_INTV_EFFECTIVENESS_DEFAULT,
+            step=5.0, format="%.0f",
+            key="intv_effect",
+            help="Fraction of each $1 intervention that actually absorbs market pressure. "
+                 "50% = $2 needed to absorb $1 of excess demand.",
+        )
+        st.divider()
+        st.caption("— LAK/THB Channel (THB Reserves) —")
+        bol_thb_reserves: float = st.number_input(
+            "BOL THB Reserves (USD equiv mn)",
+            min_value=0.0, max_value=10_000.0,
+            value=BOL_THB_RESERVES_DEFAULT_USD_MN,
+            step=10.0, format="%.0f",
+            key="bol_thb_reserves",
+            help="BOL's THB buffer used to defend LAK/THB rate (stated in USD equivalent).",
+        )
+        daily_thb_vol_mn: float = st.number_input(
+            "Daily LAK/THB Market Vol (USD equiv mn)",
+            min_value=0.1, max_value=500.0,
+            value=DAILY_THB_VOL_DEFAULT_USD_MN,
+            step=0.5, format="%.1f",
+            key="daily_thb_vol",
+            help="Estimated daily LAK-THB cross market turnover (USD equivalent).",
+        )
+        target_lak_thb_dep: float = st.number_input(
+            "Target max LAK/THB dep (%/mo)",
+            min_value=0.0, max_value=20.0,
+            value=TARGET_LAK_THB_DEP_DEFAULT,
+            step=0.25, format="%.2f",
+            key="target_lak_thb_dep",
+            help="Maximum monthly LAK depreciation vs THB BOL wants to allow.",
+        )
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  HERO HEADER
 # ─────────────────────────────────────────────────────────────────────────────
 st.markdown(
-    f"<h2 style='color:#F5A623;margin-bottom:0.1rem;'>📊 FX & Commodities Forecast Dashboard</h2>"
+    f"<h2 style='color:#F5A623;margin-bottom:0.1rem;'>"
+    f"🇱🇦 Laos FX &amp; Import Price Forecast — Policy Dashboard</h2>"
     f"<p style='color:#94A3B8;font-size:0.88rem;margin-top:0.1rem;'>"
-    f"📡 Live prices &nbsp;·&nbsp; 5-Scenario projections &nbsp;·&nbsp; "
+    f"Bank of Laos (BOL) · FX Policy Division &nbsp;&nbsp;"
+    f"<span style='color:#1E3A5F;'>|</span>&nbsp;"
     f"<span style='color:#F5E642;font-weight:600;'>{TODAY.strftime('%d %B %Y')}</span>"
     f"&nbsp;·&nbsp; <span style='color:#36D399;'>● LIVE</span></p>",
     unsafe_allow_html=True,
@@ -892,7 +1031,7 @@ st.divider()
 # ─────────────────────────────────────────────────────────────────────────────
 #  TABS
 # ─────────────────────────────────────────────────────────────────────────────
-tab_live, tab_comm, tab_fx, tab_lak, tab_summary, tab_export = st.tabs(
+tab_live, tab_comm, tab_fx, tab_lak, tab_summary, tab_export, tab_help = st.tabs(
     [
         "📈 Live Prices",
         "📦 Commodity Scenarios",
@@ -900,6 +1039,7 @@ tab_live, tab_comm, tab_fx, tab_lak, tab_summary, tab_export = st.tabs(
         "🇱🇦 Laos Focus",
         "📋 Summary View",
         "📥 Export to Excel",
+        "📖 User Guide",
     ]
 )
 
@@ -910,8 +1050,11 @@ tab_live, tab_comm, tab_fx, tab_lak, tab_summary, tab_export = st.tabs(
 with tab_live:
     st.markdown(
         "<p style='color:#94A3B8;font-size:0.84rem;margin-bottom:0.5rem;'>"
-        "Prices from Yahoo Finance (~15-min delay). Futures: front-month contracts. "
-        "Values in USD unless stated.</p>",
+        "Live market rates from Yahoo Finance (~15-min delay) — front-month futures. "
+        "These are the <b style='color:#F5E642;'>global benchmark prices</b> whose movements "
+        "feed directly into Laos import costs, LAK purchasing power, and domestic inflation. "
+        "See the 🇱🇦 <b>Laos Focus</b> tab for LAK-translated forecasts and policy impact analysis."
+        "</p>",
         unsafe_allow_html=True,
     )
 
@@ -961,12 +1104,15 @@ with tab_live:
 
     st.markdown(
         "<div class='info-box'>"
-        "<b style='color:#60A5FA;'>ℹ️ FX Convention</b><br>"
-        "EUR/USD &amp; GBP/USD = USD per foreign unit (+ scenario → USD weakens). "
-        "USD/JPY, USD/THB &amp; USD/LAK = foreign units per USD (+ scenario → currency weakens). "
-        "LAK/THB and Gold (LAK) are derived — see the 🇱🇦 <b>Laos Focus</b> tab."
-        "</div>",
-        unsafe_allow_html=True,
+        "<b style='color:#60A5FA;'>ℹ️ FX Rate Convention &amp; Laos Policy Relevance</b><br>"
+        "<b>EUR/USD &amp; GBP/USD</b> = quoted as USD per 1 foreign unit. "
+        "A rise means the USD is <i>weaker</i>; this makes oil (priced in USD) dearer in USD terms, "
+        "but also makes EU-origin imports cheaper in LAK (if LAK tracks USD). "
+        "Key channel: EUR/USD rise → Thailand &amp; Vietnam import costs rise → Laos CPI rises.<br>"
+        "<b>USD/THB &amp; USD/LAK</b> = foreign units per USD (+ scenario → THB/LAK weakens vs USD). "
+        "LAK weakening = all USD-denominated imports get costlier in LAK. "
+        "BOL intervenes in both USD and THB markets to stabilise LAK purchasing power.<br>"
+        "<b>LAK/THB cross rate</b> and <b>Gold (LAK/oz)</b> are derived — see the 🇱🇦 <b>Laos Focus</b> tab."
     )
 
 
@@ -979,10 +1125,17 @@ with tab_comm:
     if not valid_comm:
         st.error("No commodity prices loaded. Check your connection and refresh.")
     else:
-        st.subheader(f"Commodity Price Scenarios — {forecast_months}-Month Horizon")
+        st.subheader(f"📦 Global Commodity Scenarios — {forecast_months}-Month Horizon")
+        st.caption(
+            "Global commodity prices drive Laos import costs directly. "
+            "Oil (Brent/WTI) is the most critical: Laos imports fuel via Thailand and Vietnam, "
+            "so a 10% oil rise typically adds 2–4 pp to Laos CPI within 1–2 months. "
+            "Gold and agricultural prices affect household purchasing power and food security. "
+            "Adjust assumptions in the sidebar or use Oil Comparison below for CPI impact."
+        )
 
-        # ── Scenario table ────────────────────────────────────────────────────
-        st.markdown("##### Projected Prices (all assets, all scenarios)")
+        # ── Scenario table ──────────────────────────────────────────────────────
+        st.markdown("##### Projected Prices — All Commodities × All Scenarios")
         df_comm = scenario_table(valid_comm, forecast_months, pcts_comm)
 
         # Colour-code scenario columns
@@ -1042,6 +1195,150 @@ with tab_comm:
                     detail_rows.append(row)
                 st.dataframe(pd.DataFrame(detail_rows).set_index("Scenario"), use_container_width=True)
 
+        st.divider()
+
+        # ── Oil Price Scenario Comparison ────────────────────────────────────────
+        st.markdown(
+            "<div class='group-header' style='border-left-color:#F5A623;'>"
+            "🛢️ Oil Price — Scenario Comparison & Laos Inflation Impact</div>",
+            unsafe_allow_html=True,
+        )
+        oil_assets = [a for a in ["Brent Crude ($/bbl)", "WTI Crude ($/bbl)"] if a in valid_comm]
+
+        if oil_assets:
+            oc_left, oc_right = st.columns([3, 2])
+
+            with oc_left:
+                # Grouped bar: end-of-horizon price per scenario, one bar per oil type
+                fig_oil = go.Figure()
+                for oi, oa in enumerate(oil_assets):
+                    end_prices = [
+                        project(valid_comm[oa], forecast_months,
+                                pcts_comm.get(sc, DEFAULT_MONTHLY_PCT[sc]))[-1]
+                        for sc in SCENARIOS
+                    ]
+                    short = "Brent" if "Brent" in oa else "WTI"
+                    fig_oil.add_trace(go.Bar(
+                        x=SCENARIOS, y=end_prices,
+                        name=short,
+                        text=[f"${v:.1f}" for v in end_prices],
+                        textposition="outside",
+                        textfont=dict(color="#E2E8F0", size=10),
+                        marker_color=[SCENARIO_COLORS[sc] for sc in SCENARIOS],
+                        marker_line_color="#0F1923", marker_line_width=1.5,
+                        opacity=1.0 if oi == 0 else 0.55,
+                        marker_pattern_shape="" if oi == 0 else "/",
+                    ))
+                fig_oil.update_layout(
+                    title=dict(
+                        text=f"<b>Oil End-Horizon Price — Month {forecast_months}</b>",
+                        font_size=13, font_color="#F5A623",
+                    ),
+                    barmode="group",
+                    yaxis_title="USD / bbl",
+                    template="plotly_dark",
+                    paper_bgcolor="#0F1923", plot_bgcolor="#0B1420",
+                    font=dict(color="#CBD5E1"), height=360,
+                    margin=dict(t=60, b=60, l=65, r=20),
+                    legend=dict(font_color="#CBD5E1", bgcolor="rgba(0,0,0,0)"),
+                    xaxis=dict(gridcolor="#1E3A5F", tickfont=dict(color="#94A3B8", size=10)),
+                    yaxis=dict(gridcolor="#1E3A5F", tickfont=dict(color="#94A3B8")),
+                )
+                st.plotly_chart(fig_oil, use_container_width=True)
+
+                # Divergence: % change from current price per scenario
+                fig_div = go.Figure()
+                for sc in SCENARIOS:
+                    pct = pcts_comm.get(sc, DEFAULT_MONTHLY_PCT[sc])
+                    div_vals = [
+                        ((project(valid_comm[oa], forecast_months, pct)[-1]
+                          - valid_comm[oa]) / valid_comm[oa]) * 100
+                        for oa in oil_assets
+                    ]
+                    avg_div = float(np.mean(div_vals))
+                    fig_div.add_trace(go.Bar(
+                        x=[sc], y=[avg_div],
+                        name=sc,
+                        marker_color=SCENARIO_COLORS[sc],
+                        marker_line_color="#0F1923", marker_line_width=1.5,
+                        text=[f"{avg_div:+.1f}%"],
+                        textposition="outside",
+                        textfont=dict(color=SCENARIO_COLORS[sc], size=11),
+                        showlegend=False,
+                    ))
+                fig_div.add_hline(y=0, line_color="#64748B", line_width=1)
+                fig_div.update_layout(
+                    title=dict(
+                        text="<b>Avg Oil % Change vs Current</b> (Brent + WTI)",
+                        font_size=13, font_color="#F5A623",
+                    ),
+                    yaxis_title="% change from today",
+                    template="plotly_dark",
+                    paper_bgcolor="#0F1923", plot_bgcolor="#0B1420",
+                    font=dict(color="#CBD5E1"), height=280,
+                    margin=dict(t=55, b=55, l=65, r=20),
+                    xaxis=dict(gridcolor="#1E3A5F", tickfont=dict(color="#94A3B8", size=10)),
+                    yaxis=dict(gridcolor="#1E3A5F", tickfont=dict(color="#94A3B8")),
+                    showlegend=False,
+                )
+                st.plotly_chart(fig_div, use_container_width=True)
+
+            with oc_right:
+                st.markdown(
+                    "<p style='color:#94A3B8;font-size:0.78rem;font-weight:700;"
+                    "text-transform:uppercase;letter-spacing:0.07em;margin-bottom:0.4rem;'>"
+                    "Scenario vs Today + Laos CPI Impact</p>",
+                    unsafe_allow_html=True,
+                )
+                oil_tbl_rows = []
+                for sc in SCENARIOS:
+                    pct   = pcts_comm.get(sc, DEFAULT_MONTHLY_PCT[sc])
+                    row_o = {"Scenario": sc}
+                    chg_list = []
+                    for oa in oil_assets:
+                        end_p = project(valid_comm[oa], forecast_months, pct)[-1]
+                        chg   = ((end_p - valid_comm[oa]) / valid_comm[oa]) * 100
+                        short = "Brent" if "Brent" in oa else "WTI"
+                        row_o[f"{short} ($/bbl)"]  = f"{end_p:.2f}"
+                        row_o[f"{short} % Chg"]    = f"{chg:+.1f}%"
+                        chg_list.append(chg)
+                    avg_chg_pct  = float(np.mean(chg_list))
+                    cpi_impact   = avg_chg_pct * oil_cpi_beta_sidebar
+                    row_o["LAO CPI Impact (pp)"] = f"{cpi_impact:+.2f} pp"
+                    oil_tbl_rows.append(row_o)
+
+                df_oil = pd.DataFrame(oil_tbl_rows).set_index("Scenario")
+
+                def style_oil(df: pd.DataFrame):
+                    s = pd.DataFrame("", index=df.index, columns=df.columns)
+                    for sc_n in df.index:
+                        bg = SCENARIO_BG.get(sc_n, "#162032")
+                        for col in df.columns:
+                            s.loc[sc_n, col] = (
+                                f"background-color:{bg};color:#E2E8F0;"
+                                "font-family:'Courier New',monospace;font-size:0.8rem;"
+                            )
+                    return s
+
+                st.dataframe(
+                    df_oil.style.apply(style_oil, axis=None),
+                    use_container_width=True, height=250,
+                )
+                st.markdown(
+                    f"<div class='info-box' style='margin-top:0.6rem;'>"
+                    f"<b style='color:#F5A623;'>🛢️ → 🇱🇦 CPI Pass-through</b><br>"
+                    f"Oil basket weight: <b style='color:#F5E642;'>"
+                    f"{oil_cpi_beta_sidebar*100:.0f}%</b>.<br>"
+                    f"10% oil rise → "
+                    f"<b style='color:#F5E642;'>{oil_cpi_beta_sidebar*10:.1f} pp</b> "
+                    f"additional Laos CPI pressure.<br>"
+                    f"<small style='color:#64748B;'>Adjust <i>Oil→CPI pass-through</i> "
+                    f"fraction in sidebar.</small></div>",
+                    unsafe_allow_html=True,
+                )
+        else:
+            st.info("🛢️ No Brent / WTI price data loaded. Refresh to enable this section.")
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  TAB 3 – FX SCENARIOS
@@ -1052,11 +1349,14 @@ with tab_fx:
     if not valid_fx:
         st.error("No FX data loaded. Check your connection and refresh.")
     else:
-        st.subheader(f"FX Rate Scenarios — {forecast_months}-Month Horizon")
+        st.subheader(f"💱 External FX Scenarios — {forecast_months}-Month Horizon")
         st.caption(
-            "⚠️ Percentage changes apply to the **quoted rate**.  "
-            "For EUR/USD and GBP/USD, a + scenario = USD weakens.  "
-            "For USD/JPY and USD/THB, a + scenario = JPY/THB weakens."
+            "⚠️ "
+            "EUR/USD &amp; GBP/USD: percentage change in the quoted rate — "
+            "a + scenario means USD weakens (EUR/GBP buys more USD). "
+            "USD/THB: + means THB weakens vs USD — impacts Laos because ~60% of Laos imports "
+            "come via Thailand, priced in THB. "
+            "USD/LAK: see the 🇱🇦 Laos Focus tab for full LAK analysis and BOL intervention modelling."
         )
 
         # ── Scenario table ────────────────────────────────────────────────────
@@ -1211,20 +1511,105 @@ with tab_lak:
     # ══ 2. LAK/THB Cross Rate Chart ═══════════════════════════════════════════
     st.markdown(
         "<div class='group-header' style='border-left-color:#36D399;'>"
-        "🔄 LAK/THB — Cross Rate Scenario</div>",
+        "🔄 LAK/THB — Cross Rate Scenario (Derived from USD/LAK ÷ USD/THB)</div>",
         unsafe_allow_html=True,
     )
+    _thb_eff_val = _thb_usd or 34.5
     if lak_thb_eff:
-        fig_lak_thb = price_path_chart(
-            "LAK/THB (LAK per 1 Thai Baht)", lak_thb_eff, forecast_months, pcts_lak
+        # ── Proper derived cross-rate forecast ───────────────────────────────
+        # LAK/THB(m) = lak_thb_eff × (1+lak_pct/100)^m / (1+thb_pct/100)^m
+        # When LAK depreciates faster than THB → LAK/THB rises (LAK weakens vs THB)
+        # When THB depreciates faster than LAK → LAK/THB falls (LAK strengthens vs THB)
+        fig_lak_thb = go.Figure()
+        cross_rows = []
+        for sc in SCENARIOS:
+            lak_pct = pcts_lak.get(sc, LAK_DEFAULT_MONTHLY_PCT[sc])
+            thb_pct = pcts_thb.get(sc, THB_DEFAULT_MONTHLY_PCT[sc])
+            cross_mo_pct = ((1 + lak_pct / 100) / (1 + thb_pct / 100) - 1) * 100
+            y_cross = [
+                round(lak_thb_eff * ((1 + lak_pct / 100) ** m) / ((1 + thb_pct / 100) ** m), 4)
+                for m in range(forecast_months + 1)
+            ]
+            direction = (
+                "↑ LAK weakens vs THB" if cross_mo_pct > 0.05
+                else ("↓ LAK strengthens vs THB" if cross_mo_pct < -0.05 else "→ Stable")
+            )
+            txt_c = [""] * len(y_cross)
+            txt_c[-1] = f"  {y_cross[-1]:,.2f}"
+            fig_lak_thb.add_trace(go.Scatter(
+                x=x_lak, y=y_cross,
+                mode="lines+markers+text",
+                name=f"{sc} ({cross_mo_pct:+.2f}%/mo)",
+                text=txt_c,
+                textposition="middle right",
+                textfont=dict(color=SCENARIO_COLORS[sc], size=11, family="Courier New, monospace"),
+                line=dict(color=SCENARIO_COLORS[sc], dash=SCENARIO_DASH[sc], width=2.5),
+                marker=dict(size=7, color=SCENARIO_COLORS[sc]),
+                hovertemplate=f"<b>{sc}</b><br>%{{x}}: %{{y:,.4f}} LAK/THB<extra></extra>",
+            ))
+            # build detail rows for expander
+            row_c = {
+                "Scenario": sc,
+                "USD/LAK %/mo": f"{lak_pct:+.2f}%",
+                "USD/THB %/mo": f"{thb_pct:+.2f}%",
+                "LAK/THB net %/mo": f"{cross_mo_pct:+.3f}%",
+                "Direction": direction,
+            }
+            for i_c, lbl in enumerate(x_lak):
+                row_c[lbl] = f"{y_cross[i_c]:,.2f}"
+            cross_rows.append(row_c)
+
+        fig_lak_thb.update_layout(
+            title=dict(
+                text="<b>LAK/THB Cross Rate</b> — Derived Scenario Forecast",
+                font_size=15, font_color="#F5A623",
+            ),
+            xaxis_title="Period", yaxis_title="LAK per 1 Thai Baht",
+            template="plotly_dark",
+            legend=dict(orientation="h", yanchor="bottom", y=1.02,
+                        xanchor="right", x=1, font_size=11,
+                        bgcolor="rgba(0,0,0,0)", font_color="#CBD5E1"),
+            height=430, margin=dict(t=90, b=50, r=120, l=80),
+            hovermode="x unified", paper_bgcolor="#0F1923", plot_bgcolor="#0B1420",
+            font=dict(color="#CBD5E1"),
+            xaxis=dict(gridcolor="#1E3A5F", linecolor="#1E3A5F",
+                       tickfont=dict(color="#94A3B8")),
+            yaxis=dict(gridcolor="#1E3A5F", linecolor="#1E3A5F",
+                       tickfont=dict(color="#94A3B8")),
         )
         st.plotly_chart(fig_lak_thb, use_container_width=True)
+
+        with st.expander("📋 LAK/THB Derived Cross Rate — Detailed Projection"):
+            def style_cross(df: pd.DataFrame):
+                s = pd.DataFrame("", index=df.index, columns=df.columns)
+                for sc_n in df.index:
+                    bg = SCENARIO_BG.get(sc_n, "#162032")
+                    for col in df.columns:
+                        s.loc[sc_n, col] = (
+                            f"background-color:{bg};color:#E2E8F0;"
+                            "font-family:'Courier New',monospace;"
+                        )
+                return s
+            st.dataframe(
+                pd.DataFrame(cross_rows).set_index("Scenario").style.apply(style_cross, axis=None),
+                use_container_width=True,
+            )
+
         st.markdown(
             "<div class='info-box'>"
-            "<b style='color:#36D399;'>ℹ️ LAK/THB Methodology</b><br>"
-            "Derived as (USD/LAK) ÷ (USD/THB). Scenario assumes THB/USD stays relatively "
-            "stable; movement is driven by the LAK depreciation/appreciation assumptions above.<br>"
-            "<b>+ monthly % → more LAK per Baht (LAK weakens against THB)</b>."
+            "<b style='color:#36D399;'>ℹ️ LAK/THB Cross Rate Logic</b><br>"
+            "Derived each month as <b>USD/LAK(m) ÷ USD/THB(m)</b> using separate compounded "
+            "projections for each currency, so the <i>net</i> cross-rate change = "
+            "LAK depreciation vs USD <b>minus</b> THB depreciation vs USD.<br>"
+            "<b style='color:#F5A623;'>When EUR/USD strengthens (USD weakens):</b> "
+            "Both LAK and THB tend to weaken vs USD, but THB typically weakens <i>less</i> "
+            "(stronger economy, higher policy credibility) → "
+            "<b style='color:#F87171;'>LAK/THB rises — LAK weakens vs THB.</b><br>"
+            "<b style='color:#60A5FA;'>When EUR/USD weakens (USD strengthens):</b> "
+            "Both currencies firm vs USD; THB may firm faster → "
+            "<b style='color:#36D399;'>LAK/THB may fall — LAK strengthens vs THB.</b><br>"
+            "<b>BOL can stabilise LAK/THB</b> by selling THB from reserves — "
+            "see the 🛡️ <b>FX Intervention Simulator</b> below."
             "</div>",
             unsafe_allow_html=True,
         )
@@ -1394,15 +1779,287 @@ with tab_lak:
             unsafe_allow_html=True,
         )
 
+    # ── Inflation Transmission Pressures (full width) ─────────────────────────
+    st.markdown(
+        "<div class='group-header' style='border-left-color:#F87171;font-size:0.82rem;'>"
+        "🔗 CPI Transmission Pressures — Oil + EUR/USD Channel (Cumulative over horizon)</div>",
+        unsafe_allow_html=True,
+    )
+    _eur_usd_base = fx_prices.get("EUR/USD") or 1.10
+    trans_rows = []
+    _oil_keys = [a for a in ["Brent Crude ($/bbl)", "WTI Crude ($/bbl)"]
+                 if comm_prices.get(a) is not None]
+    for sc in SCENARIOS:
+        # Oil channel — cum % change at end of horizon
+        if _oil_keys:
+            oil_cum_pct = float(np.mean([
+                ((project(comm_prices[a], forecast_months,
+                          pcts_comm.get(sc, DEFAULT_MONTHLY_PCT[sc]))[-1]
+                  - comm_prices[a]) / comm_prices[a]) * 100
+                for a in _oil_keys
+            ]))
+        else:
+            oil_cum_pct = 0.0
+        oil_cpi = oil_cum_pct * oil_cpi_beta_sidebar
+
+        # EUR/USD channel: EUR/USD up = USD weak = Thai/VN imports via EUR dearer → CPI rises
+        eur_mo_pct = pcts_fx.get(sc, DEFAULT_MONTHLY_PCT[sc])
+        eur_cum_pct = ((1 + eur_mo_pct / 100) ** forecast_months - 1) * 100
+        eur_cpi = eur_cum_pct * eur_cpi_beta_sidebar
+
+        total_pressure = oil_cpi + eur_cpi
+        trans_rows.append({
+            "Scenario":                       sc,
+            "Oil price (cum %)": f"{oil_cum_pct:+.1f}%",
+            "Oil → CPI (pp)":              f"{oil_cpi:+.2f} pp",
+            "EUR/USD (cum %)": f"{eur_cum_pct:+.1f}%",
+            "EUR/USD → CPI (pp)":          f"{eur_cpi:+.2f} pp",
+            "Total ext. CPI pressure":     f"{total_pressure:+.2f} pp",
+        })
+    df_trans = pd.DataFrame(trans_rows).set_index("Scenario")
+
+    def _style_trans(df: pd.DataFrame):
+        s = pd.DataFrame("", index=df.index, columns=df.columns)
+        for sc_n in df.index:
+            bg = SCENARIO_BG.get(sc_n, "#162032")
+            for col in df.columns:
+                s.loc[sc_n, col] = (
+                    f"background-color:{bg};color:#E2E8F0;"
+                    "font-family:'Courier New',monospace;font-size:0.8rem;"
+                )
+        return s
+
+    st.dataframe(
+        df_trans.style.apply(_style_trans, axis=None),
+        use_container_width=True, height=230,
+    )
+    st.markdown(
+        "<div class='info-box'>"
+        "<b style='color:#F87171;'>🔗 Transmission Chain: EUR/USD → Thailand/Vietnam → Laos CPI</b><br>"
+        "<b style='color:#F5A623;'>① EUR/USD rises (USD weakens):</b> "
+        "Thai &amp; Vietnamese exporters who source goods from Europe face higher costs in THB/VND "
+        "→ passed on to Laos importers → <b>Laos CPI rises</b>.<br>"
+        "<b style='color:#36D399;'>② Oil price rises:</b> "
+        "Energy &amp; transport cost in Laos rises directly — most oil is imported via Thailand.<br>"
+        "<b style='color:#60A5FA;'>③ LAK depreciation</b> (tracked in the CPI model above via "
+        "the <i>Inflation Adjustment per Scenario</i>) amplifies all import-cost effects because "
+        "Laos pays in USD/THB but earns in LAK.<br>"
+        f"<small style='color:#64748B;'>EUR/USD beta: {eur_cpi_beta_sidebar:.2f} · "
+        f"Oil beta: {oil_cpi_beta_sidebar:.2f} · Adjust in sidebar.</small>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+    st.divider()
+
+    # ══ 5. FX Intervention Simulator ══════════════════════════════════════════
+    st.markdown(
+        "<div class='group-header' style='border-left-color:#A78BFA;'>"
+        "🛡️ FX Intervention Simulator — Reserve Cost & Runway</div>",
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        "<p style='color:#94A3B8;font-size:0.84rem;margin:0.2rem 0 0.8rem 0;'>"
+        "How much BOL must spend each month from reserves to keep LAK depreciation "
+        "below the policy target, across all 5 scenarios.</p>",
+        unsafe_allow_html=True,
+    )
+
+    monthly_fx_vol_mn  = daily_fx_vol_mn  * 30   # USD/LAK channel monthly volume
+    monthly_thb_vol_mn = daily_thb_vol_mn * 30   # LAK/THB channel monthly volume
+
+    intv_rows = []
+    for sc in SCENARIOS:
+        # ── USD / LAK channel ──────────────────────────────────────────────
+        nat_dep_usd   = pcts_lak.get(sc, LAK_DEFAULT_MONTHLY_PCT[sc])
+        excess_usd    = max(0.0, nat_dep_usd - target_max_dep)
+        cost_usd_mo   = (
+            (excess_usd / 100.0) * monthly_fx_vol_mn / (intv_effect / 100.0)
+            if excess_usd > 0 and intv_effect > 0 else 0.0
+        )
+        runway_usd    = bol_reserves / cost_usd_mo if cost_usd_mo > 0 else 9999.0
+
+        # ── LAK / THB channel ──────────────────────────────────────────────
+        # Cross-rate natural monthly change = USD/LAK rate − USD/THB rate (compounded)
+        thb_dep       = pcts_thb.get(sc, THB_DEFAULT_MONTHLY_PCT[sc])
+        cross_mo_dep  = ((1 + nat_dep_usd / 100) / (1 + thb_dep / 100) - 1) * 100
+        excess_thb    = max(0.0, cross_mo_dep - target_lak_thb_dep)
+        cost_thb_mo   = (
+            (excess_thb / 100.0) * monthly_thb_vol_mn / (intv_effect / 100.0)
+            if excess_thb > 0 and intv_effect > 0 else 0.0
+        )
+        runway_thb    = bol_thb_reserves / cost_thb_mo if cost_thb_mo > 0 else 9999.0
+
+        # ── Combined ───────────────────────────────────────────────────────
+        total_mo_cost = cost_usd_mo + cost_thb_mo
+        total_reserves = bol_reserves + bol_thb_reserves
+        combined_runway = total_reserves / total_mo_cost if total_mo_cost > 0 else 9999.0
+        horizon_total   = total_mo_cost * forecast_months
+        reserves_end    = max(total_reserves - horizon_total, 0.0)
+
+        intv_rows.append({
+            "Scenario":                    sc,
+            "USD/LAK nat dep (%/mo)":      nat_dep_usd,
+            "USD excess (pp)":             round(excess_usd, 2),
+            "USD cost (mn/mo)":            round(cost_usd_mo, 1),
+            "USD runway (mo)":             round(min(runway_usd, 999.0), 1),
+            "LAK/THB nat dep (%/mo)":      round(cross_mo_dep, 3),
+            "THB excess (pp)":             round(excess_thb, 2),
+            "THB cost (mn/mo)": round(cost_thb_mo, 1),
+            "THB runway (mo)":             round(min(runway_thb, 999.0), 1),
+            "Total cost (mn/mo)":          round(total_mo_cost, 1),
+            f"Total cost M{forecast_months} (mn)": round(horizon_total, 1),
+            "Combined runway (mo)":        round(min(combined_runway, 999.0), 1),
+            f"Reserves left M{forecast_months} (mn)": round(reserves_end, 1),
+        })
+    df_intv = pd.DataFrame(intv_rows).set_index("Scenario")
+
+    # ── 4-column chart layout: USD cost | USD runway | THB cost | Combined runway
+    iv1, iv2 = st.columns([1, 1])
+
+    def _intv_bar_chart(
+        title: str, x_vals, y_vals, text_vals, hline_y: float, hline_label: str,
+        yaxis_title: str, bar_colors,
+    ) -> go.Figure:
+        fig = go.Figure(go.Bar(
+            x=x_vals, y=y_vals, text=text_vals,
+            textposition="outside",
+            textfont=dict(color="#E2E8F0", size=10),
+            marker_color=bar_colors,
+            marker_line_color="#0F1923", marker_line_width=1.5,
+        ))
+        if hline_y > 0:
+            fig.add_hline(
+                y=hline_y, line_dash="dot", line_color="#F87171",
+                annotation_text=hline_label,
+                annotation_font_color="#F87171",
+            )
+        fig.update_layout(
+            title=dict(text=title, font_size=12, font_color="#F5A623"),
+            yaxis_title=yaxis_title, template="plotly_dark",
+            paper_bgcolor="#0F1923", plot_bgcolor="#0B1420",
+            font=dict(color="#CBD5E1"), height=320,
+            margin=dict(t=70, b=55, l=65, r=10),
+            xaxis=dict(gridcolor="#1E3A5F", tickfont=dict(color="#94A3B8", size=9)),
+            yaxis=dict(gridcolor="#1E3A5F", tickfont=dict(color="#94A3B8")),
+            showlegend=False,
+        )
+        return fig
+
+    def _runway_colors(runway_list):
+        cols = []
+        for r in runway_list:
+            if r >= 999:   cols.append("#36D399")
+            elif r >= 24:  cols.append("#60A5FA")
+            elif r >= 12:  cols.append("#FBBF24")
+            else:          cols.append("#F87171")
+        return cols
+
+    with iv1:
+        # USD/LAK monthly cost
+        usd_costs = [r["USD cost (mn/mo)"] for r in intv_rows]
+        st.plotly_chart(
+            _intv_bar_chart(
+                f"<b>USD/LAK — Monthly Cost (USD mn)</b><br>"
+                f"<sub>Target ≤{target_max_dep:.1f}%/mo · vol ${daily_fx_vol_mn:.1f}mn/day</sub>",
+                SCENARIOS, usd_costs,
+                [f"${v:.1f}mn" for v in usd_costs],
+                bol_reserves / 12, "1-yr USD depletion pace",
+                "USD mn / month",
+                [SCENARIO_COLORS[sc] for sc in SCENARIOS],
+            ),
+            use_container_width=True,
+        )
+        # USD runway
+        usd_run = [r["USD runway (mo)"] for r in intv_rows]
+        fig_usd_rw = _intv_bar_chart(
+            f"<b>USD Reserve Runway</b><br>"
+            f"<sub>BOL USD: ${bol_reserves:,.0f}mn</sub>",
+            SCENARIOS, [min(r, 120) for r in usd_run],
+            [("∞" if r >= 999 else f"{r:.0f} mo") for r in usd_run],
+            0, "", "Months remaining",
+            _runway_colors(usd_run),
+        )
+        fig_usd_rw.add_hline(y=12, line_dash="dot", line_color="#FBBF24",
+                             annotation_text="12-mo", annotation_font_color="#FBBF24")
+        fig_usd_rw.add_hline(y=6,  line_dash="dot", line_color="#F87171",
+                             annotation_text="6-mo",  annotation_font_color="#F87171")
+        st.plotly_chart(fig_usd_rw, use_container_width=True)
+
+    with iv2:
+        # LAK/THB monthly cost
+        thb_costs = [r["THB cost (mn/mo)"] for r in intv_rows]
+        st.plotly_chart(
+            _intv_bar_chart(
+                f"<b>LAK/THB — Monthly THB Cost (USD equiv mn)</b><br>"
+                f"<sub>Target ≤{target_lak_thb_dep:.1f}%/mo · vol ${daily_thb_vol_mn:.1f}mn/day</sub>",
+                SCENARIOS, thb_costs,
+                [f"${v:.1f}mn" for v in thb_costs],
+                bol_thb_reserves / 12, "1-yr THB depletion pace",
+                "USD equiv mn / month",
+                [SCENARIO_COLORS[sc] for sc in SCENARIOS],
+            ),
+            use_container_width=True,
+        )
+        # Combined runway
+        comb_run = [r["Combined runway (mo)"] for r in intv_rows]
+        fig_comb_rw = _intv_bar_chart(
+            f"<b>Combined Reserve Runway (Both Channels)</b><br>"
+            f"<sub>USD ${bol_reserves:,.0f}mn + THB ${bol_thb_reserves:,.0f}mn equiv</sub>",
+            SCENARIOS, [min(r, 120) for r in comb_run],
+            [("∞" if r >= 999 else f"{r:.0f} mo") for r in comb_run],
+            0, "", "Months remaining",
+            _runway_colors(comb_run),
+        )
+        fig_comb_rw.add_hline(y=12, line_dash="dot", line_color="#FBBF24",
+                              annotation_text="12-mo", annotation_font_color="#FBBF24")
+        fig_comb_rw.add_hline(y=6,  line_dash="dot", line_color="#F87171",
+                              annotation_text="6-mo",  annotation_font_color="#F87171")
+        st.plotly_chart(fig_comb_rw, use_container_width=True)
+
+    def _style_intv(df: pd.DataFrame):
+        s = pd.DataFrame("", index=df.index, columns=df.columns)
+        for sc_n in df.index:
+            bg = SCENARIO_BG.get(sc_n, "#162032")
+            for col in df.columns:
+                s.loc[sc_n, col] = (
+                    f"background-color:{bg};color:#E2E8F0;"
+                    "font-family:'Courier New',monospace;font-size:0.76rem;"
+                )
+        return s
+
+    st.dataframe(
+        df_intv.style.apply(_style_intv, axis=None),
+        use_container_width=True, height=250,
+    )
+    st.markdown(
+        f"<div class='info-box'>"
+        f"<b style='color:#A78BFA;'>🛡️ Two-Channel Intervention Model</b><br>"
+        f"<b style='color:#60A5FA;'>USD/LAK channel:</b> BOL sells USD to buy LAK. "
+        f"Cost = (excess dep pp ÷ 100) × ${monthly_fx_vol_mn:.0f}mn/mo ÷ effectiveness.<br>"
+        f"<b style='color:#36D399;'>LAK/THB channel:</b> BOL sells THB to buy LAK. "
+        f"LAK/THB natural dep = USD/LAK rate <i>minus</i> USD/THB rate (compounded). "
+        f"Cost = (excess cross dep pp ÷ 100) × ${monthly_thb_vol_mn:.0f}mn/mo ÷ effectiveness.<br>"
+        f"<b style='color:#F5A623;'>Why BOL needs BOTH channels:</b> Even when USD/LAK is "
+        f"stable, LAK can weaken vs THB if Thailand's economy outperforms Laos — "
+        f"hurting Lao importers who pay Thai suppliers in THB.<br>"
+        f"<b style='color:#36D399;'>∞ runway</b> = no intervention needed for that scenario.<br>"
+        f"<small style='color:#64748B;'>Both channels share effectiveness parameter "
+        f"({intv_effect:.0f}%). Model assumes linear market response.</small>"
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  TAB 5 – SUMMARY VIEW
 # ══════════════════════════════════════════════════════════════════════════════
 with tab_summary:
-    st.subheader(f"End-of-Horizon Summary  (Month {forecast_months})")
+    st.subheader(f"📋 End-of-Horizon Snapshot — Month {forecast_months}")
     st.caption(
-        f"Shows the projected price/rate at the end of the {forecast_months}-month "
-        "horizon for each scenario, with % change from current."
+        f"Projected price or rate at the end of the {forecast_months}-month horizon for each scenario, "
+        "with percentage change from today’s live price. "
+        "Use this table for briefing notes, MPC submissions, or BOL/NSC scenario summaries."
     )
 
     valid_c = {k: v for k, v in comm_prices.items() if v is not None}
@@ -1422,11 +2079,11 @@ with tab_summary:
     st.markdown("#### Scenario Legend")
     leg_cols = st.columns(len(SCENARIOS))
     descs = {
-        "Strong Bull":   "Major upside shock / supply disruption",
-        "Moderate Bull": "Gradual recovery / positive sentiment",
-        "Base Case":     "Consensus / status-quo trajectory",
-        "Moderate Bear": "Mild correction / softening demand",
-        "Strong Bear":   "Sharp sell-off / recession / stress event",
+        "Strong Bull":   "🚨 Worst-case for Laos — commodity surge, USD strong, LAK depreciates fast, CPI spikes",
+        "Moderate Bull": "Moderate commodity rise, mild LAK depreciation, manageable CPI pressure",
+        "Base Case":     "Consensus / status-quo trajectory — BOL reference scenario",
+        "Moderate Bear": "Commodity softening, partial LAK stabilisation, easing inflation outlook",
+        "Strong Bear":   "🟢 Best-case for Laos — commodity decline, USD weakens, LAK firms, CPI relief",
     }
     for i, sc in enumerate(SCENARIOS):
         with leg_cols[i]:
@@ -1452,22 +2109,30 @@ with tab_summary:
 #  TAB 5 – EXPORT TO EXCEL
 # ══════════════════════════════════════════════════════════════════════════════
 with tab_export:
-    st.subheader("Export Forecast Report to Excel")
+    st.subheader("📥 Export Forecast Report to Excel")
+    st.caption(
+        "Generate a fully formatted Excel workbook for use in BOL/NSC briefings, "
+        "MPC notes, cabinet presentations, or archiving. "
+        "All scenario assumptions and live prices at time of export are saved in the Assumptions sheet."
+    )
 
     st.markdown(
         """
-        The generated workbook contains **3 worksheets**:
+        The generated workbook contains **5 worksheets**:
 
         | Sheet | Contents |
         |-------|----------|
-        | **Commodity Scenarios** | Monthly projected prices for all 11 commodities × 5 scenarios |
-        | **FX Scenarios** | Monthly projected rates for all 5 FX pairs × 5 scenarios |
-        | **Laos — FX & Gold (LAK)** | USD/LAK, LAK/THB, Gold (LAK/oz) projections × 5 scenarios |
-        | **Laos — Inflation** | CPI index projections and scenario rate summary |
-        | **Assumptions** | Scenario parameters, horizon, and generation timestamp |
+        | **Commodity Scenarios** | Monthly projected prices for all 11 commodity imports × 5 scenarios |
+        | **FX Scenarios** | Monthly projected rates for EUR/USD, GBP/USD, USD/JPY, USD/THB, USD/LAK × 5 scenarios |
+        | **Laos — FX &amp; Gold (LAK)** | USD/LAK, LAK/THB cross rate, and Gold price in LAK × 5 scenarios |
+        | **Laos — Inflation** | Laos CPI index projections and annual scenario rate summary |
+        | **Assumptions** | All sidebar parameters, forecast horizon, and export timestamp |
 
-        Cells are colour-coded by scenario (🟢 bull / 🔵 base / 🟠 bear / 🔴 strong bear).  
-        Columns are frozen at the asset name and current price for easy scrolling.
+        Cells are colour-coded by scenario (🟢 bull / 🔵 base / 🟠 bear / 🔴 strong bear).
+        Columns are frozen at the asset name and current price for easy horizontal scrolling.
+         
+        ⚠️ **Before exporting:** enter the USD/LAK rate manually in the 🇱🇦 Laos Focus tab
+        if Yahoo Finance returns N/A (this is common for LAK as an exotic currency).
         """
     )
 
@@ -1505,3 +2170,360 @@ with tab_export:
                 type="primary",
             )
             st.success(f"✅ **{fname}** is ready for download.")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  TAB 7 – USER GUIDE
+# ══════════════════════════════════════════════════════════════════════════════
+with tab_help:
+    st.markdown(
+        "<h3 style='color:#F5A623;margin-bottom:0.2rem;'>📖 User Guide</h3>"
+        "<p style='color:#94A3B8;font-size:0.85rem;'>"
+        "How to use the Laos FX &amp; Import Price Forecast Dashboard — "
+        "Bank of Laos / FX Policy Division</p>",
+        unsafe_allow_html=True,
+    )
+
+    # ── 1. Purpose ───────────────────────────────────────────────────────────
+    st.markdown(
+        "<div class='group-header' style='border-left-color:#F5A623;'>"
+        "🎯 Purpose &amp; Intended Users</div>",
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        "<div class='info-box' style='border-left-color:#F5A623;'>"
+        "This dashboard is built for the <b style='color:#F5E642;'>FX Policy Division</b> "
+        "(BOL) and the <b style='color:#F5E642;'>National Statistics Centre (NSC)</b> to:"
+        "<ul style='color:#CBD5E1;margin:0.4rem 0 0 1rem;line-height:1.8;'>"
+        "<li>Monitor real-time global commodity and FX prices relevant to Laos’ import basket.</li>"
+        "<li>Run 5-scenario forward projections (1–6 months) to stress-test LAK stability.</li>"
+        "<li>Estimate how much BOL foreign reserves are needed to defend the LAK vs USD "
+        "and vs THB under each scenario.</li>"
+        "<li>Quantify how oil price and EUR/USD moves feed through to Laos CPI via Thailand "
+        "and Vietnam.</li>"
+        "<li>Generate formatted Excel reports for MPC briefings, cabinet presentations, "
+        "and archiving.</li>"
+        "</ul>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+    st.divider()
+
+    # ── 2. Sidebar walkthrough ───────────────────────────────────────────────
+    st.markdown(
+        "<div class='group-header' style='border-left-color:#60A5FA;'>"
+        "⚙️ Sidebar — How to Set Assumptions</div>",
+        unsafe_allow_html=True,
+    )
+    sidebar_rows = [
+        ("Forecast horizon (months)", "Slider 1–6",
+         "How many months ahead to project. All charts and tables update instantly."),
+        ("Commodity Assumptions", "Per-scenario %/mo",
+         "Monthly compounded price change applied to ALL 11 commodities simultaneously. "
+         "Positive = prices rise (bad for Laos imports). Negative = prices fall."),
+        ("FX Assumptions (EUR/USD etc.)", "Per-scenario %/mo or mirror",
+         "Monthly % change for EUR/USD, GBP/USD, USD/JPY. Tick ‘Mirror commodity’ "
+         "to use the same figures. These drive the FX Scenarios tab."),
+        ("Current Laos CPI inflation (%)", "Manual entry",
+         "Enter the latest official annual CPI inflation rate from BOL/NSC. "
+         "This is the base rate for inflation projections — default is 26%."),
+        ("LAK Depreciation per Scenario", "Per-scenario %/mo",
+         "Monthly % change in USD/LAK. Positive = LAK weakens (more LAK per USD). "
+         "Drives USD/LAK chart and feeds into LAK/THB cross-rate and Gold-in-LAK calculations."),
+        ("THB Monthly % per Scenario", "Per-scenario %/mo",
+         "Monthly % change in USD/THB. Positive = THB weakens. "
+         "Used to derive the LAK/THB cross rate: net dep = LAK dep minus THB dep."),
+        ("Oil → CPI pass-through fraction", "0.0 – 1.0",
+         "Fraction of an oil price % change that flows into Laos CPI. "
+         "Default 0.30 means a 10% oil rise adds ~3 pp to Laos CPI within the forecast horizon."),
+        ("EUR/USD → CPI (Thailand import channel)", "0.0 – 1.0",
+         "Fraction of a EUR/USD % change that flows into Laos CPI via Thai/Vietnamese "
+         "goods importers. Default 0.15 = 10% EUR/USD rise → +1.5 pp Laos CPI."),
+        ("FX Intervention Parameters", "USD & THB reserves + targets",
+         "Define BOL’s reserve buffers, daily market volumes, policy targets, and "
+         "intervention effectiveness for the FX Intervention Simulator below."),
+    ]
+    for name, ctrl, desc in sidebar_rows:
+        st.markdown(
+            f"<div style='margin-bottom:0.5rem;padding:0.6rem 1rem;"
+            f"background:#162032;border:1px solid #1E3A5F;border-radius:6px;border-left:3px solid #60A5FA;'>"
+            f"<b style='color:#60A5FA;'>{name}</b> "
+            f"<span style='color:#64748B;font-size:0.78rem;'>({ctrl})</span><br>"
+            f"<span style='color:#CBD5E1;font-size:0.84rem;'>{desc}</span>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+
+    st.divider()
+
+    # ── 3. Tab guide ───────────────────────────────────────────────────────────
+    st.markdown(
+        "<div class='group-header' style='border-left-color:#36D399;'>"
+        "🗂️ Tab-by-Tab Guide</div>",
+        unsafe_allow_html=True,
+    )
+    tab_guide = [
+        ("📈 Live Prices",
+         "Displays the latest Yahoo Finance price for each commodity and FX pair. "
+         "Prices update every 5 minutes (cached). If a price shows N/A, the data feed "
+         "is unavailable — this is common for USD/LAK (exotic). Enter it manually in "
+         "the 🇱🇦 Laos Focus tab."),
+        ("📦 Commodity Scenarios",
+         "Shows a full summary table (all 11 commodities × 5 scenarios × all months) and "
+         "a selectable price path chart. The 🛢️ Oil Comparison section at the bottom "
+         "shows end-of-horizon oil prices and estimates the CPI impact on Laos for each scenario."),
+        ("💱 FX Scenarios",
+         "Same layout for EUR/USD, GBP/USD, USD/JPY, USD/THB, and USD/LAK. "
+         "Note: USD/THB assumptions are set separately under the THB expander in the sidebar."),
+        ("🇱🇦 Laos Focus",
+         "The core policy module. Contains: "
+         "(1) USD/LAK 5-scenario chart with detailed table, "
+         "(2) LAK/THB derived cross-rate chart (USD/LAK ÷ USD/THB), "
+         "(3) Gold price in LAK, "
+         "(4) Laos CPI inflation index projection, "
+         "(5) CPI Transmission Pressures table (oil + EUR/USD channels), "
+         "(6) FX Intervention Simulator — two-channel (USD and THB) reserve runway analysis."),
+        ("📋 Summary View",
+         "Quick one-page snapshot: end-of-horizon price/rate for every asset in every scenario. "
+         "Ideal for printing or pasting into briefing documents."),
+        ("📥 Export to Excel",
+         "Generates a formatted Excel workbook with 5 sheets. "
+         "Click \u2018Generate Excel Report\u2019 then \u2018Download\u2019. "
+         "Always refresh live data first and enter the USD/LAK rate manually if needed."),
+    ]
+    for tab_n, tab_desc in tab_guide:
+        st.markdown(
+            f"<div style='margin-bottom:0.45rem;padding:0.6rem 1rem;"
+            f"background:#162032;border:1px solid #1E3A5F;border-radius:6px;"
+            f"border-left:3px solid #36D399;'>"
+            f"<b style='color:#36D399;'>{tab_n}</b><br>"
+            f"<span style='color:#CBD5E1;font-size:0.84rem;'>{tab_desc}</span>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+
+    st.divider()
+
+    # ── 4. Scenario logic ───────────────────────────────────────────────────────
+    st.markdown(
+        "<div class='group-header' style='border-left-color:#FBBF24;'>"
+        "📊 How the 5-Scenario Model Works</div>",
+        unsafe_allow_html=True,
+    )
+    sc_g1, sc_g2 = st.columns(2)
+    with sc_g1:
+        st.markdown(
+            "<div class='info-box' style='border-left-color:#FBBF24;'>"
+            "<b style='color:#FBBF24;'>Compounding formula</b><br>"
+            "Each projection uses monthly compounding:<br>"
+            "<code style='color:#F5E642;'>Price(month m) = Price₀ × (1 + r)^m</code><br>"
+            "where <b>r = monthly % / 100</b>.<br><br>"
+            "The <b>LAK/THB cross rate</b> is derived per month as:<br>"
+            "<code style='color:#36D399;'>LAK/THB(m) = USD/LAK(m) ÷ USD/THB(m)</code><br>"
+            "using separate compounded paths for each currency, so the net "
+            "cross-rate movement equals LAK depreciation <b>minus</b> THB depreciation.<br><br>"
+            "<b>Gold in LAK</b> is derived as:<br>"
+            "<code style='color:#FFD700;'>Gold(LAK) = Gold(USD/oz) × USD/LAK(m)</code>"
+            "</div>",
+            unsafe_allow_html=True,
+        )
+    with sc_g2:
+        st.markdown(
+            "<div class='info-box' style='border-left-color:#FBBF24;'>"
+            "<b style='color:#FBBF24;'>Scenario interpretation for Laos</b><br>"
+            "<table style='width:100%;font-size:0.8rem;border-collapse:collapse;'>"
+            "<tr><th style='color:#94A3B8;text-align:left;padding:3px 6px;'>Scenario</th>"
+            "<th style='color:#94A3B8;padding:3px 6px;'>Impact on Laos</th></tr>"
+            f"<tr><td style='color:#00FF87;padding:3px 6px;'>Strong Bull</td>"
+            "<td style='color:#CBD5E1;padding:3px 6px;'>Commodities rise fast → 🔴 worst for Laos: CPI spikes, LAK weakens, BOL costly</td></tr>"
+            f"<tr><td style='color:#36D399;padding:3px 6px;'>Moderate Bull</td>"
+            "<td style='color:#CBD5E1;padding:3px 6px;'>Moderate pressure, manageable if BOL has reserves</td></tr>"
+            f"<tr><td style='color:#60A5FA;padding:3px 6px;'>Base Case</td>"
+            "<td style='color:#CBD5E1;padding:3px 6px;'>Status quo — BOL reference scenario for planning</td></tr>"
+            f"<tr><td style='color:#FBBF24;padding:3px 6px;'>Moderate Bear</td>"
+            "<td style='color:#CBD5E1;padding:3px 6px;'>Commodity softening, CPI eases, LAK can firm</td></tr>"
+            f"<tr><td style='color:#F87171;padding:3px 6px;'>Strong Bear</td>"
+            "<td style='color:#CBD5E1;padding:3px 6px;'>Commodities fall sharply → 🟢 best for Laos: CPI relief, LAK can appreciate</td></tr>"
+            "</table>"
+            "<br><small style='color:#64748B;'>Note: \"Bull\" = commodity/FX rate rises. For Laos, "
+            "which is a net commodity importer, rising commodity prices are generally "
+            "<b>negative</b>.</small>"
+            "</div>",
+            unsafe_allow_html=True,
+        )
+
+    st.divider()
+
+    # ── 5. FX Intervention model ───────────────────────────────────────────────
+    st.markdown(
+        "<div class='group-header' style='border-left-color:#A78BFA;'>"
+        "🛡️ FX Intervention Simulator — How It Works</div>",
+        unsafe_allow_html=True,
+    )
+    intv_g1, intv_g2 = st.columns(2)
+    with intv_g1:
+        st.markdown(
+            "<div class='info-box' style='border-left-color:#A78BFA;'>"
+            "<b style='color:#A78BFA;'>USD/LAK Channel</b><br>"
+            "BOL sells USD (from foreign reserves) to buy LAK on the open market, "
+            "reducing supply of LAK and supporting its value vs USD.<br><br>"
+            "<b>Monthly cost formula:</b><br>"
+            "<code>Excess dep = LAK dep/mo − target max dep/mo</code><br>"
+            "<code>Monthly cost = (excess ÷ 100) × monthly vol ÷ effectiveness</code><br><br>"
+            "If LAK dep/mo ≤ target → <b>no intervention needed</b>.<br>"
+            "<b>Effectiveness</b>: 50% means BOL needs $2 to absorb $1 of excess demand."
+            "</div>",
+            unsafe_allow_html=True,
+        )
+    with intv_g2:
+        st.markdown(
+            "<div class='info-box' style='border-left-color:#36D399;'>"
+            "<b style='color:#36D399;'>LAK/THB Channel</b><br>"
+            "BOL sells THB reserves to buy LAK, defending the LAK/THB cross rate. "
+            "This is important because ~60% of Laos imports are sourced from Thailand "
+            "and priced in THB — if LAK weakens only vs THB (not vs USD), "
+            "import costs still rise and CPI is affected.<br><br>"
+            "<b>Cross-rate natural dep = USD/LAK rate − USD/THB rate</b> (compounded).<br>"
+            "The THB channel cost is computed identically but uses the THB reserve buffer "
+            "and the LAK/THB market volume."
+            "</div>",
+            unsafe_allow_html=True,
+        )
+    st.markdown(
+        "<div class='info-box' style='border-left-color:#F87171;margin-top:0.6rem;'>"
+        "<b style='color:#F87171;'>⚠️ Model Assumptions & Limitations</b><br>"
+        "<ul style='color:#CBD5E1;margin:0.3rem 0 0 1rem;line-height:1.8;'>"
+        "<li>Linear market response — real FX markets are non-linear and can have "
+        "\"cliff edges\" when credibility is lost.</li>"
+        "<li>Effectiveness % is constant across all scenarios — in practice, it may "
+        "be lower under severe stress (large outflows).</li>"
+        "<li>Both channels share the same effectiveness parameter in the current model.</li>"
+        "<li>Does not account for sterilisation costs, capital account restrictions, "
+        "or IMF facility availability.</li>"
+        "<li>Reserve figures should be updated monthly from BOL official reserve data. "
+        "Default: USD 1,300 mn (estimated).</li>"
+        "</ul>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+    st.divider()
+
+    # ── 6. CPI Transmission chain ───────────────────────────────────────────────
+    st.markdown(
+        "<div class='group-header' style='border-left-color:#F87171;'>"
+        "🔗 CPI Transmission Chain — How Global Prices Affect Laos Inflation</div>",
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        "<div class='info-box' style='border-left-color:#F87171;'>"
+        "<b style='color:#F87171;'>Three-stage transmission mechanism:</b><br><br>"
+        "📦 <b style='color:#F5A623;'>Stage 1 — Global commodity/FX shock</b><br>"
+        "&nbsp;&nbsp;Oil prices rise globally (e.g. OPEC cut or geopolitical shock), or "
+        "EUR/USD rises (USD weakens globally).<br><br>"
+        "🚢 <b style='color:#FBBF24;'>Stage 2 — Thailand / Vietnam import channel</b><br>"
+        "&nbsp;&nbsp;Laos imports ~60% of consumer and capital goods from Thailand and ~15% "
+        "from Vietnam. Thai importers who source European goods now pay more in THB "
+        "(because EUR/THB rises when EUR/USD rises). This cost is passed on to Laos buyers. "
+        "Fuel, which powers transport and manufacturing, is imported via Thailand at global "
+        "oil prices plus a regional margin.<br><br>"
+        "🇱🇦 <b style='color:#F87171;'>Stage 3 — LAK depreciation amplifier</b><br>"
+        "&nbsp;&nbsp;Laos earns revenue mainly in LAK but pays for imports in USD or THB. "
+        "If LAK depreciates simultaneously, all import costs rise <i>further</i> in LAK terms — "
+        "amplifying the inflationary effect. This is why the CPI model adjusts per scenario "
+        "for the LAK depreciation assumption.<br><br>"
+        "<small style='color:#64748B;'>The pass-through fractions (Oil → CPI and EUR/USD → CPI) "
+        "are simplified linear approximations. Actual pass-through depends on subsidy policy, "
+        "retail market competition, and timing of importer price adjustments.</small>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+    st.divider()
+
+    # ── 7. Data sources & update cadence ─────────────────────────────────────────
+    st.markdown(
+        "<div class='group-header' style='border-left-color:#94A3B8;'>"
+        "📡 Data Sources &amp; Recommended Update Cadence</div>",
+        unsafe_allow_html=True,
+    )
+    data_rows = [
+        ("Live commodity & FX prices",
+         "Yahoo Finance (free API)",
+         "Auto-refreshed every 5 min. Click ‘Refresh Live Data’ in sidebar to force update."),
+        ("USD/LAK rate",
+         "BOL daily rate (manual entry)",
+         "Yahoo Finance rarely has LAK. Enter BOL’s official daily USD/LAK fixing in the "
+         "🇱🇦 Laos Focus tab."),
+        ("Laos CPI inflation %",
+         "NSC / BOL official data (manual)",
+         "Update monthly when NSC publishes the CPI release. Default is 26% — "
+         "adjust in sidebar under 🇱🇦 Laos-Specific Assumptions."),
+        ("BOL FX Reserves",
+         "BOL internal treasury data (manual)",
+         "Update monthly. Default assumes ~USD 1,300 mn. "
+         "Set under 🔧 FX Intervention Parameters in sidebar."),
+        ("Oil beta / EUR beta",
+         "Calibrated from historical Laos CPI vs oil pass-through studies",
+         "Review and recalibrate quarterly. Defaults: Oil 0.30, EUR/USD 0.15."),
+        ("THB monthly % scenarios",
+         "Analyst judgement / IMF / BOT forecasts",
+         "Regularly review against Bank of Thailand (BOT) MPC decisions "
+         "and IMF ASEAN regional outlook releases."),
+    ]
+    for src_name, src_provider, src_note in data_rows:
+        st.markdown(
+            f"<div style='margin-bottom:0.45rem;padding:0.6rem 1rem;"
+            f"background:#162032;border:1px solid #1E3A5F;border-radius:6px;"
+            f"border-left:3px solid #94A3B8;'>"
+            f"<b style='color:#E2E8F0;'>{src_name}</b> "
+            f"<span style='color:#F5A623;font-size:0.8rem;'>| {src_provider}</span><br>"
+            f"<span style='color:#94A3B8;font-size:0.82rem;'>{src_note}</span>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+
+    st.divider()
+
+    # ── 8. Quick-start checklist ───────────────────────────────────────────────
+    st.markdown(
+        "<div class='group-header' style='border-left-color:#36D399;'>"
+        "✅ Monthly Analyst Checklist</div>",
+        unsafe_allow_html=True,
+    )
+    checklist = [
+        "Update <b>Current Laos CPI inflation %</b> in sidebar from latest NSC release.",
+        "Update <b>BOL USD Reserves</b> from treasury data.",
+        "Check if <b>USD/LAK rate</b> loaded automatically — if not, enter BOL official fixing in "
+        "🇱🇦 Laos Focus tab.",
+        "Click <b>🔄 Refresh Live Data</b> in sidebar to pull latest Yahoo Finance prices.",
+        "Review <b>scenario assumptions</b> against latest IMF, BOT, OPEC, and Fed outlooks. "
+        "Adjust if needed.",
+        "Review <b>Oil → CPI beta</b> and <b>EUR/USD → CPI beta</b>. Recalibrate if historical "
+        "pass-through has changed.",
+        "Run <b>FX Intervention Simulator</b>: check runway under all scenarios — flag any scenario "
+        "where runway falls below 12 months.",
+        "Export the report under <b>📥 Export to Excel</b> and attach to MPC briefing pack.",
+    ]
+    for i, item in enumerate(checklist, 1):
+        st.markdown(
+            f"<div style='margin-bottom:0.35rem;padding:0.5rem 1rem;"
+            f"background:#0A1F2E;border:1px solid #1E3A5F;border-radius:6px;"
+            f"border-left:3px solid #36D399;'>"
+            f"<span style='color:#36D399;font-weight:700;font-size:0.85rem;'>{i}. </span>"
+            f"<span style='color:#CBD5E1;font-size:0.84rem;'>{item}</span>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+
+    st.markdown(
+        "<div class='info-box' style='margin-top:1rem;border-left-color:#64748B;'>"
+        "<small style='color:#64748B;'>"
+        "🇱🇦 Laos FX &amp; Import Price Forecast Dashboard — "
+        "FX Policy Division, Bank of Laos (BOL) &nbsp;·&nbsp; "
+        f"Built: {TODAY.strftime('%B %Y')} &nbsp;·&nbsp; "
+        "Data: Yahoo Finance (Yahoo! Inc.) — for internal policy analysis only, not for redistribution."
+        "</small></div>",
+        unsafe_allow_html=True,
+    )
