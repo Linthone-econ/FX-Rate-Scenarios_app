@@ -138,6 +138,12 @@ FX_INTV_EFFECTIVENESS_DEFAULT: float      = 50.0      # intervention effectivene
 OIL_CPI_BETA_DEFAULT: float               = 0.30      # fraction: 10% oil rise → 3 pp CPI
 EUR_CPI_BETA_DEFAULT: float               = 0.15      # 10% EUR/USD rise → +1.5 pp CPI via Thai/VN imports
 
+# EUR/USD → USD/LAK inverse beta
+# When EUR/USD falls 1% (USD strengthens), USD/LAK typically rises by ~BETA %
+# (LAK weakens as capital flows to safe-haven USD).
+# Empirical range for frontier EM currencies: 0.5 – 1.2.
+EUR_LAK_BETA_DEFAULT: float               = 0.80      # 1% EUR/USD fall → +0.80% USD/LAK rise
+
 # Default monthly USD/THB % per scenario (+ = THB weakens vs USD; THB is more stable than LAK)
 THB_DEFAULT_MONTHLY_PCT: dict[str, float] = {
     "Strong Bull":    1.5,   # risk-off / EM sell-off → THB weakens vs USD
@@ -907,6 +913,16 @@ with st.sidebar:
         help="When EUR/USD rises (USD weakens), Thai & Vietnamese goods imported via Europe "
              "get costlier → Laos CPI rises. e.g. 0.15 = 10% EUR/USD rise → +1.5 pp CPI.",
     )
+    eur_lak_beta_sidebar: float = st.number_input(
+        "EUR/USD → USD/LAK beta (inverse)",
+        min_value=0.0, max_value=3.0,
+        value=EUR_LAK_BETA_DEFAULT,
+        step=0.05, format="%.2f",
+        key="eur_lak_beta",
+        help="How much USD/LAK rises (LAK weakens) when EUR/USD falls 1% (USD strengthens). "
+             "e.g. 0.80 = EUR/USD −1% → USD/LAK +0.8%. Typical frontier EM range: 0.5–1.2. "
+             "Set to 0 to disable the linkage.",
+    )
     with st.expander("📊 THB Monthly % per Scenario (USD/THB)", expanded=False):
         st.caption(
             "+ = THB weakens vs USD (more THB per dollar).\n"
@@ -1416,9 +1432,189 @@ with tab_fx:
                     detail_rows.append(row)
                 st.dataframe(pd.DataFrame(detail_rows).set_index("Scenario"), use_container_width=True)
 
+        st.divider()
 
-# ══════════════════════════════════════════════════════════════════════════════
-#  TAB 4 – LAOS FOCUS
+        # ── EUR/USD → USD/LAK Linkage Analysis ─────────────────────────────────────
+        st.markdown(
+            "<div class='group-header' style='border-left-color:#A78BFA;'>"
+            "🔗 EUR/USD ↔ USD/LAK Linkage — When USD Strengthens, LAK Weakens</div>",
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            "<p style='color:#94A3B8;font-size:0.83rem;margin:0.2rem 0 0.8rem;'>"
+            "EUR/USD and USD/LAK move <b style='color:#F87171;'>inversely</b>: "
+            "when EUR/USD falls (USD strengthens), capital flows to USD safe-haven assets, "
+            "putting depreciation pressure on LAK → USD/LAK rises. "
+            "Adjust the <b>EUR/USD → USD/LAK beta</b> in the sidebar.</p>",
+            unsafe_allow_html=True,
+        )
+
+        _eur_base = valid_fx.get("EUR/USD")
+        _lak_base = _lak_usd or 21_500.0   # live rate; _lak_usd_eff defined later in tab_lak
+
+        if _eur_base and _lak_base:
+            lk_left, lk_right = st.columns([3, 2])
+
+            with lk_left:
+                x_lk = ["Now"] + [
+                    (TODAY + timedelta(days=30 * m)).strftime("%b %Y")
+                    for m in range(1, forecast_months + 1)
+                ]
+                fig_link = go.Figure()
+
+                # ─ EUR/USD path (left y-axis) ─────────────────────────────────────
+                for sc in SCENARIOS:
+                    eur_mo = pcts_fx.get(sc, DEFAULT_MONTHLY_PCT[sc])
+                    y_eur  = project(_eur_base, forecast_months, eur_mo)
+                    fig_link.add_trace(go.Scatter(
+                        x=x_lk, y=y_eur,
+                        mode="lines+markers",
+                        name=f"EUR/USD {sc}",
+                        yaxis="y1",
+                        line=dict(color=SCENARIO_COLORS[sc], dash=SCENARIO_DASH[sc],
+                                  width=2, opacity=0.85),
+                        marker=dict(size=5, color=SCENARIO_COLORS[sc]),
+                        hovertemplate=(
+                            f"<b>EUR/USD — {sc}</b><br>"
+                            "%{x}: %{y:.4f}<extra></extra>"
+                        ),
+                        showlegend=True,
+                        legendgroup=sc,
+                    ))
+
+                # ─ Derived USD/LAK path (right y-axis) ───────────────────────────
+                for sc in SCENARIOS:
+                    eur_mo = pcts_fx.get(sc, DEFAULT_MONTHLY_PCT[sc])
+                    # Inverse: EUR/USD falls X%/mo → USD/LAK rises beta*X %/mo
+                    lak_linked_mo = -eur_mo * eur_lak_beta_sidebar
+                    y_lak = project(_lak_base, forecast_months, lak_linked_mo)
+                    txt_lk = [""] * len(y_lak)
+                    txt_lk[-1] = f"  {y_lak[-1]:,.0f}"
+                    fig_link.add_trace(go.Scatter(
+                        x=x_lk, y=y_lak,
+                        mode="lines+markers+text",
+                        name=f"USD/LAK (linked) {sc}",
+                        yaxis="y2",
+                        text=txt_lk,
+                        textposition="middle right",
+                        textfont=dict(color=SCENARIO_COLORS[sc], size=10,
+                                      family="Courier New, monospace"),
+                        line=dict(color=SCENARIO_COLORS[sc], dash="dot",
+                                  width=2.5),
+                        marker=dict(size=6, color=SCENARIO_COLORS[sc],
+                                    symbol="square"),
+                        hovertemplate=(
+                            f"<b>USD/LAK linked — {sc}</b><br>"
+                            f"%{{x}}: %{{y:,.0f}} LAK "
+                            f"(EUR/USD à +{lak_linked_mo:+.2f}%/mo)<extra></extra>"
+                        ),
+                        showlegend=True,
+                        legendgroup=sc,
+                    ))
+
+                fig_link.update_layout(
+                    title=dict(
+                        text=(
+                            "<b>EUR/USD ↓ &nbsp;⟹&nbsp; USD/LAK ↑</b> — "
+                            f"Inverse linkage (beta = {eur_lak_beta_sidebar:.2f})<br>"
+                            "<sup><span style='color:#60A5FA;'>solid = EUR/USD</span> &nbsp;·&nbsp; "
+                            "<span style='color:#A78BFA;'>dotted = derived USD/LAK (right axis)</span></sup>"
+                        ),
+                        font_size=13, font_color="#F5A623",
+                    ),
+                    xaxis=dict(gridcolor="#1E3A5F", tickfont=dict(color="#94A3B8")),
+                    yaxis=dict(
+                        title="EUR/USD rate",
+                        titlefont=dict(color="#60A5FA"),
+                        tickfont=dict(color="#60A5FA"),
+                        gridcolor="#1E3A5F",
+                    ),
+                    yaxis2=dict(
+                        title="USD/LAK (linked)",
+                        titlefont=dict(color="#A78BFA"),
+                        tickfont=dict(color="#A78BFA"),
+                        tickformat=",.0f",
+                        overlaying="y",
+                        side="right",
+                        showgrid=False,
+                    ),
+                    template="plotly_dark",
+                    paper_bgcolor="#0F1923", plot_bgcolor="#0B1420",
+                    font=dict(color="#CBD5E1"), height=440,
+                    margin=dict(t=90, b=55, l=65, r=100),
+                    hovermode="x unified",
+                    legend=dict(
+                        orientation="h", yanchor="bottom", y=1.02,
+                        xanchor="right", x=1,
+                        font_size=9, bgcolor="rgba(0,0,0,0)",
+                        font_color="#CBD5E1",
+                    ),
+                )
+                st.plotly_chart(fig_link, use_container_width=True)
+
+            with lk_right:
+                st.markdown(
+                    "<p style='color:#94A3B8;font-size:0.78rem;font-weight:700;"
+                    "text-transform:uppercase;letter-spacing:0.07em;"
+                    "margin-bottom:0.4rem;'>Derived USD/LAK per Scenario</p>",
+                    unsafe_allow_html=True,
+                )
+                link_rows = []
+                for sc in SCENARIOS:
+                    eur_mo        = pcts_fx.get(sc, DEFAULT_MONTHLY_PCT[sc])
+                    lak_linked_mo = -eur_mo * eur_lak_beta_sidebar
+                    eur_end       = project(_eur_base, forecast_months, eur_mo)[-1]
+                    lak_end       = project(_lak_base, forecast_months, lak_linked_mo)[-1]
+                    eur_chg_pct   = (eur_end / _eur_base - 1) * 100
+                    lak_chg_pct   = (lak_end / _lak_base  - 1) * 100
+                    direction_lak = "↑ LAK weakens" if lak_chg_pct > 0 else "↓ LAK firms"
+                    link_rows.append({
+                        "Scenario":              sc,
+                        "EUR/USD %/mo":         f"{eur_mo:+.1f}%",
+                        f"EUR/USD M{forecast_months}": f"{eur_end:.4f} ({eur_chg_pct:+.1f}%)",
+                        "USD/LAK %/mo (linked)": f"{lak_linked_mo:+.2f}%",
+                        f"USD/LAK M{forecast_months}": f"{lak_end:,.0f} ({lak_chg_pct:+.1f}%)",
+                        "LAK Direction":         direction_lak,
+                    })
+
+                df_link = pd.DataFrame(link_rows).set_index("Scenario")
+
+                def _style_link(df: pd.DataFrame):
+                    s = pd.DataFrame("", index=df.index, columns=df.columns)
+                    for sc_n in df.index:
+                        bg = SCENARIO_BG.get(sc_n, "#162032")
+                        for col in df.columns:
+                            s.loc[sc_n, col] = (
+                                f"background-color:{bg};color:#E2E8F0;"
+                                "font-family:'Courier New',monospace;font-size:0.78rem;"
+                            )
+                    return s
+
+                st.dataframe(
+                    df_link.style.apply(_style_link, axis=None),
+                    use_container_width=True, height=270,
+                )
+                st.markdown(
+                    f"<div class='info-box' style='margin-top:0.5rem;border-left-color:#A78BFA;'>"
+                    f"<b style='color:#A78BFA;'>🔗 Inverse Linkage</b><br>"
+                    f"Formula: <code>USD/LAK %/mo = −EUR/USD %/mo × {eur_lak_beta_sidebar:.2f}</code><br><br>"
+                    f"<b style='color:#F5A623;'>EUR/USD ↓ (USD strong)</b> → "
+                    f"<b style='color:#F87171;'>USD/LAK ↑ (LAK weakens)</b><br>"
+                    f"<b style='color:#36D399;'>EUR/USD ↑ (USD weak)</b> → "
+                    f"<b style='color:#36D399;'>USD/LAK ↓ (LAK firms)</b><br><br>"
+                    f"<small style='color:#64748B;'>This is a <i>derived</i> estimate based on "
+                    f"the beta linkage. Actual USD/LAK also depends on Laos-specific factors "
+                    f"(trade balance, BOL intervention, domestic inflation). "
+                    f"Compare with the standalone USD/LAK assumptions in the "
+                    f"🇱🇦 Laos Focus tab.</small>"
+                    f"</div>",
+                    unsafe_allow_html=True,
+                )
+        else:
+            st.info(
+                "🔗 EUR/USD or USD/LAK data not loaded. "
+                "Refresh data or enter USD/LAK manually in the 🇱🇦 Laos Focus tab."
+            )
 # ══════════════════════════════════════════════════════════════════════════════
 with tab_lak:
     st.markdown(
