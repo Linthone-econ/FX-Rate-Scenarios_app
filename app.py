@@ -843,7 +843,7 @@ with st.sidebar:
             )
 
     st.divider()
-    if st.button("🔄 Refresh Live Data", use_container_width=True, type="secondary"):
+    if st.button("🔄 Refresh Live Data", width="stretch", type="secondary"):
         st.cache_data.clear()
         st.rerun()
 
@@ -1175,7 +1175,7 @@ with tab_comm:
 
         st.dataframe(
             df_comm.style.apply(style_comm, axis=None).format("{:,.4f}"),
-            use_container_width=True,
+            width="stretch",
             height=min(60 + len(valid_comm) * 36, 500),
         )
 
@@ -1192,7 +1192,7 @@ with tab_comm:
             fig = price_path_chart(
                 sel_comm, valid_comm[sel_comm], forecast_months, pcts_comm
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
             # Show the projection table for selected asset
             with st.expander(f"📋 Detailed projection for {sel_comm}"):
@@ -1209,7 +1209,7 @@ with tab_comm:
                     for i, label in enumerate(x_labels):
                         row[label] = f"{vals[i]:,.4f}"
                     detail_rows.append(row)
-                st.dataframe(pd.DataFrame(detail_rows).set_index("Scenario"), use_container_width=True)
+                st.dataframe(pd.DataFrame(detail_rows).set_index("Scenario"), width="stretch")
 
         st.divider()
 
@@ -1260,7 +1260,7 @@ with tab_comm:
                     xaxis=dict(gridcolor="#1E3A5F", tickfont=dict(color="#94A3B8", size=10)),
                     yaxis=dict(gridcolor="#1E3A5F", tickfont=dict(color="#94A3B8")),
                 )
-                st.plotly_chart(fig_oil, use_container_width=True)
+                st.plotly_chart(fig_oil, width="stretch")
 
                 # Divergence: % change from current price per scenario
                 fig_div = go.Figure()
@@ -1297,7 +1297,7 @@ with tab_comm:
                     yaxis=dict(gridcolor="#1E3A5F", tickfont=dict(color="#94A3B8")),
                     showlegend=False,
                 )
-                st.plotly_chart(fig_div, use_container_width=True)
+                st.plotly_chart(fig_div, width="stretch")
 
             with oc_right:
                 st.markdown(
@@ -1338,7 +1338,7 @@ with tab_comm:
 
                 st.dataframe(
                     df_oil.style.apply(style_oil, axis=None),
-                    use_container_width=True, height=250,
+                    width="stretch", height=250,
                 )
                 st.markdown(
                     f"<div class='info-box' style='margin-top:0.6rem;'>"
@@ -1398,7 +1398,7 @@ with tab_fx:
 
         st.dataframe(
             df_fx.style.apply(style_fx, axis=None).format("{:,.4f}"),
-            use_container_width=True,
+            width="stretch",
             height=min(60 + len(valid_fx) * 36, 300),
         )
 
@@ -1415,7 +1415,7 @@ with tab_fx:
             fig = price_path_chart(
                 sel_fx, valid_fx[sel_fx], forecast_months, pcts_fx
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
             with st.expander(f"📋 Detailed projection for {sel_fx}"):
                 x_labels = ["Now"] + [
@@ -1430,7 +1430,7 @@ with tab_fx:
                     for i, label in enumerate(x_labels):
                         row[label] = f"{vals[i]:,.4f}"
                     detail_rows.append(row)
-                st.dataframe(pd.DataFrame(detail_rows).set_index("Scenario"), use_container_width=True)
+                st.dataframe(pd.DataFrame(detail_rows).set_index("Scenario"), width="stretch")
 
         st.divider()
 
@@ -1471,8 +1471,8 @@ with tab_fx:
                         mode="lines+markers",
                         name=f"EUR/USD {sc}",
                         yaxis="y1",
-                        line=dict(color=SCENARIO_COLORS[sc], dash=SCENARIO_DASH[sc],
-                                  width=2, opacity=0.85),
+                        opacity=0.85,
+                        line=dict(color=SCENARIO_COLORS[sc], dash=SCENARIO_DASH[sc], width=2),
                         marker=dict(size=5, color=SCENARIO_COLORS[sc]),
                         hovertemplate=(
                             f"<b>EUR/USD — {sc}</b><br>"
@@ -1524,14 +1524,12 @@ with tab_fx:
                     ),
                     xaxis=dict(gridcolor="#1E3A5F", tickfont=dict(color="#94A3B8")),
                     yaxis=dict(
-                        title="EUR/USD rate",
-                        titlefont=dict(color="#60A5FA"),
+                        title=dict(text="EUR/USD rate", font=dict(color="#60A5FA")),
                         tickfont=dict(color="#60A5FA"),
                         gridcolor="#1E3A5F",
                     ),
                     yaxis2=dict(
-                        title="USD/LAK (linked)",
-                        titlefont=dict(color="#A78BFA"),
+                        title=dict(text="USD/LAK (linked)", font=dict(color="#A78BFA")),
                         tickfont=dict(color="#A78BFA"),
                         tickformat=",.0f",
                         overlaying="y",
@@ -1550,7 +1548,7 @@ with tab_fx:
                         font_color="#CBD5E1",
                     ),
                 )
-                st.plotly_chart(fig_link, use_container_width=True)
+                st.plotly_chart(fig_link, width="stretch")
 
             with lk_right:
                 st.markdown(
@@ -1592,7 +1590,7 @@ with tab_fx:
 
                 st.dataframe(
                     df_link.style.apply(_style_link, axis=None),
-                    use_container_width=True, height=270,
+                    width="stretch", height=270,
                 )
                 st.markdown(
                     f"<div class='info-box' style='margin-top:0.5rem;border-left-color:#A78BFA;'>"
@@ -1685,7 +1683,7 @@ with tab_lak:
         fig_lak = price_path_chart(
             "USD/LAK (LAK per USD)", _lak_usd_eff, forecast_months, pcts_lak
         )
-        st.plotly_chart(fig_lak, use_container_width=True)
+        st.plotly_chart(fig_lak, width="stretch")
 
         with st.expander("📋 USD/LAK Detailed Projection Table"):
             lak_rows = []
@@ -1700,7 +1698,7 @@ with tab_lak:
                 for i_l, lbl in enumerate(x_lak):
                     row[lbl] = f"{vals[i_l]:,.0f}"
                 lak_rows.append(row)
-            st.dataframe(pd.DataFrame(lak_rows).set_index("Scenario"), use_container_width=True)
+            st.dataframe(pd.DataFrame(lak_rows).set_index("Scenario"), width="stretch")
 
     st.divider()
 
@@ -1773,7 +1771,7 @@ with tab_lak:
             yaxis=dict(gridcolor="#1E3A5F", linecolor="#1E3A5F",
                        tickfont=dict(color="#94A3B8")),
         )
-        st.plotly_chart(fig_lak_thb, use_container_width=True)
+        st.plotly_chart(fig_lak_thb, width="stretch")
 
         with st.expander("📋 LAK/THB Derived Cross Rate — Detailed Projection"):
             def style_cross(df: pd.DataFrame):
@@ -1788,7 +1786,7 @@ with tab_lak:
                 return s
             st.dataframe(
                 pd.DataFrame(cross_rows).set_index("Scenario").style.apply(style_cross, axis=None),
-                use_container_width=True,
+                width="stretch",
             )
 
         st.markdown(
@@ -1871,7 +1869,7 @@ with tab_lak:
             yaxis=dict(gridcolor="#1E3A5F", linecolor="#1E3A5F", tickfont=dict(color="#94A3B8"),
                        tickformat=",.0f"),
         )
-        st.plotly_chart(fig_gl, use_container_width=True)
+        st.plotly_chart(fig_gl, width="stretch")
     else:
         st.info("Gold in LAK requires both Gold ($/oz) and USD/LAK data. Enter USD/LAK manually above if needed.")
 
@@ -1924,7 +1922,7 @@ with tab_lak:
             xaxis=dict(gridcolor="#1E3A5F", linecolor="#1E3A5F", tickfont=dict(color="#94A3B8")),
             yaxis=dict(gridcolor="#1E3A5F", linecolor="#1E3A5F", tickfont=dict(color="#94A3B8")),
         )
-        st.plotly_chart(fig_infl, use_container_width=True)
+        st.plotly_chart(fig_infl, width="stretch")
 
     with infl_tbl_col:
         st.markdown(
@@ -1961,7 +1959,7 @@ with tab_lak:
 
         st.dataframe(
             df_infl.style.apply(style_infl, axis=None),
-            use_container_width=True,
+            width="stretch",
             height=250,
         )
         st.markdown(
@@ -2027,7 +2025,7 @@ with tab_lak:
 
     st.dataframe(
         df_trans.style.apply(_style_trans, axis=None),
-        use_container_width=True, height=230,
+        width="stretch", height=230,
     )
     st.markdown(
         "<div class='info-box'>"
@@ -2164,7 +2162,7 @@ with tab_lak:
                 "USD mn / month",
                 [SCENARIO_COLORS[sc] for sc in SCENARIOS],
             ),
-            use_container_width=True,
+            width="stretch",
         )
         # USD runway
         usd_run = [r["USD runway (mo)"] for r in intv_rows]
@@ -2180,7 +2178,7 @@ with tab_lak:
                              annotation_text="12-mo", annotation_font_color="#FBBF24")
         fig_usd_rw.add_hline(y=6,  line_dash="dot", line_color="#F87171",
                              annotation_text="6-mo",  annotation_font_color="#F87171")
-        st.plotly_chart(fig_usd_rw, use_container_width=True)
+        st.plotly_chart(fig_usd_rw, width="stretch")
 
     with iv2:
         # LAK/THB monthly cost
@@ -2195,7 +2193,7 @@ with tab_lak:
                 "USD equiv mn / month",
                 [SCENARIO_COLORS[sc] for sc in SCENARIOS],
             ),
-            use_container_width=True,
+            width="stretch",
         )
         # Combined runway
         comb_run = [r["Combined runway (mo)"] for r in intv_rows]
@@ -2211,7 +2209,7 @@ with tab_lak:
                               annotation_text="12-mo", annotation_font_color="#FBBF24")
         fig_comb_rw.add_hline(y=6,  line_dash="dot", line_color="#F87171",
                               annotation_text="6-mo",  annotation_font_color="#F87171")
-        st.plotly_chart(fig_comb_rw, use_container_width=True)
+        st.plotly_chart(fig_comb_rw, width="stretch")
 
     def _style_intv(df: pd.DataFrame):
         s = pd.DataFrame("", index=df.index, columns=df.columns)
@@ -2226,7 +2224,7 @@ with tab_lak:
 
     st.dataframe(
         df_intv.style.apply(_style_intv, axis=None),
-        use_container_width=True, height=250,
+        width="stretch", height=250,
     )
     st.markdown(
         f"<div class='info-box'>"
@@ -2264,12 +2262,12 @@ with tab_summary:
     if valid_c:
         st.markdown("#### Commodities")
         df_sum_c = scenario_summary(valid_c, forecast_months, pcts_comm)
-        st.dataframe(df_sum_c, use_container_width=True)
+        st.dataframe(df_sum_c, width="stretch")
 
     if valid_f:
         st.markdown("#### FX Pairs")
         df_sum_f = scenario_summary(valid_f, forecast_months, pcts_fx)
-        st.dataframe(df_sum_f, use_container_width=True)
+        st.dataframe(df_sum_f, width="stretch")
 
     st.divider()
     st.markdown("#### Scenario Legend")
@@ -2334,7 +2332,7 @@ with tab_export:
 
     st.divider()
 
-    if st.button("📊 Generate Excel Report", type="primary", use_container_width=True):
+    if st.button("📊 Generate Excel Report", type="primary", width="stretch"):
         valid_c_exp = {k: v for k, v in comm_prices.items() if v is not None}
         valid_f_exp = {k: v for k, v in fx_prices.items()   if v is not None}
 
@@ -2362,7 +2360,7 @@ with tab_export:
                 data=excel_buf,
                 file_name=fname,
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True,
+                width="stretch",
                 type="primary",
             )
             st.success(f"✅ **{fname}** is ready for download.")
